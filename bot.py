@@ -6,123 +6,118 @@ from telegram.ext import (
     CallbackQueryHandler, ContextTypes, filters
 )
 from groq import Groq
+from dotenv import load_dotenv
 
-# ── CONFIGURACIÓN DE LLAVES (Insertadas directamente para evitar errores) ──────
+# Cargar variables de entorno (Opcional si las pones directas abajo)
+load_dotenv()
+
+# ── CONFIGURACIÓN DE SEGURIDAD ────────────────────────────────────────────────
+# RECOMENDACIÓN: Pega tus llaves aquí directamente para evitar errores de lectura
 TELEGRAM_TOKEN = "8602807198:AAHHitHYRqxQGKwQx9uIOtkas9TtN6kxFaY"
-GROQ_API_KEY = "Gsk_MbSZpfsMcnw5iw5hIiEDWGdyb3FYzazoz9RQAd7PUqDzaMlblQlp"
-GROQ_MODEL = "llama3-70b-8192"
+GROQ_API_KEY = "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"
 
-# Datos de contacto
-WHATSAPP_NUMBER = "584264014765" 
+# Modelo recomendado en la documentación oficial de Groq
+GROQ_MODEL = "llama-3.3-70b-versatile" 
+WHATSAPP_NUMBER = "584264014765"
 AULA_VIRTUAL = "https://academiajesusdenazareth.milaulas.com"
 
-# Configuración de Logs para ver errores en la terminal
+# Configuración de Logs para ver qué pasa en la terminal
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# ── PROMPT DEL SISTEMA (Personalidad de NAZARETH) ─────────────────────────────
-SYSTEM_PROMPT = f"""Eres NAZARETH, la asistente virtual de la Academia Jesús de Nazareth (AVAJDN).
-Ubicación: Venezuela. Modalidad: 100% Online.
-Tu tono es cálido, motivador y profesional. 
-IMPORTANTE: Resalta que usamos Inteligencia Artificial en TODOS los cursos.
-Si preguntan por inscripciones o costos, diles que hablen con un asesor humano en WhatsApp: +{WHATSAPP_NUMBER}.
-Enlace al Aula Virtual: {AULA_VIRTUAL}.
-Sé concisa, responde en máximo 2 o 3 párrafos cortos."""
+# ── PROMPT DEL SISTEMA (LA PERSONALIDAD) ──────────────────────────────────────
+SYSTEM_PROMPT = f"""Eres NAZARETH, la asistente virtual de la Academia Jesús de Nazareth en Venezuela.
+Tu objetivo es ayudar a los alumnos a conocer nuestros cursos 100% Online con IA.
+Tono: Muy amable, profesional y motivador. 
+Datos clave: WhatsApp +{WHATSAPP_NUMBER}, Aula Virtual: {AULA_VIRTUAL}.
+REGLA: Si preguntan por precios o inscripción, diles que pulsen el botón de WhatsApp."""
 
 # ── CLIENTE GROQ ──────────────────────────────────────────────────────────────
 client = Groq(api_key=GROQ_API_KEY)
-conversations = {}
+# Diccionario para mantener una memoria corta de la conversación
+user_memory = {}
 
 # ── TECLADO PRINCIPAL ─────────────────────────────────────────────────────────
-def build_main_keyboard():
+def main_keyboard():
     keyboard = [
         [InlineKeyboardButton("🛠️ Área Técnica", callback_data="area_tecnica")],
         [InlineKeyboardButton("📊 Área Administrativa", callback_data="area_admin")],
         [InlineKeyboardButton("🎨 Área Creativa", callback_data="area_creativa")],
-        [InlineKeyboardButton("📲 ¡Inscribirme ahora!", url=f"https://wa.me/{WHATSAPP_NUMBER}")],
+        [InlineKeyboardButton("📲 Contactar WhatsApp", url=f"https://wa.me/{WHATSAPP_NUMBER}")],
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# ── MANEJADORES DE COMANDOS Y MENSAJES ────────────────────────────────────────
-
+# ── FUNCIONES DEL BOT ─────────────────────────────────────────────────────────
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Responde al comando /start"""
-    user = update.effective_user
-    conversations[user.id] = [] # Reiniciar memoria al empezar
+    user_id = update.effective_user.id
+    user_memory[user_id] = [] # Limpiar memoria al iniciar
     await update.message.reply_text(
-        f"¡Hola {user.first_name}! 👋 Soy *NAZARETH*, tu guía de formación con IA.\n\n"
+        f"¡Hola {update.effective_user.first_name}! 👋 Soy NAZARETH.\n"
         "¿En qué área te gustaría especializarte hoy?",
-        parse_mode="Markdown",
-        reply_markup=build_main_keyboard()
+        reply_markup=main_keyboard()
     )
 
-async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Maneja los clics en los botones del teclado"""
+async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    
-    msg = (
-        "¡Excelente elección! 🚀\n\n"
-        "Pregúntame lo que quieras sobre esa área (ejemplo: '¿Qué enseñan en mecánica?') "
-        "o escribe el nombre del curso que te interesa para darte detalles."
+    await query.message.reply_text(
+        "¡Excelente elección! Cuéntame qué curso buscas o hazme cualquier duda sobre esa área.",
+        reply_markup=main_keyboard()
     )
-    await query.edit_message_text(msg, reply_markup=build_main_keyboard())
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Maneja el chat de texto usando la IA de Groq"""
     user_id = update.effective_user.id
-    user_text = update.message.text
+    user_input = update.message.text
 
-    # Mantener un historial básico para cada usuario
-    if user_id not in conversations:
-        conversations[user_id] = []
+    # Mantener historial corto (últimos 5 mensajes) para no saturar tokens
+    if user_id not in user_memory:
+        user_memory[user_id] = []
     
-    conversations[user_id].append({"role": "user", "content": user_text})
-    
-    # Limitar historial para no saturar la API
-    if len(conversations[user_id]) > 10:
-        conversations[user_id] = conversations[user_id][-10:]
+    user_memory[user_id].append({"role": "user", "content": user_input})
+    user_memory[user_id] = user_memory[user_id][-5:] 
 
     try:
-        # Llamada a la Inteligencia Artificial
+        # Petición a la API de Groq siguiendo la documentación Chat-Create
         completion = client.chat.completions.create(
-            messages=[{"role": "system", "content": SYSTEM_PROMPT}] + conversations[user_id],
             model=GROQ_MODEL,
-            temperature=0.7,
+            messages=[{"role": "system", "content": SYSTEM_PROMPT}] + user_memory[user_id],
+            temperature=0.7, # Creatividad balanceada
+            max_tokens=500,  # Respuestas concisas
+            top_p=1,
+            stream=False
         )
         
-        reply = completion.choices[0].message.content
-        conversations[user_id].append({"role": "assistant", "content": reply})
+        response_text = completion.choices[0].message.content
+        user_memory[user_id].append({"role": "assistant", "content": response_text})
         
-        await update.message.reply_text(reply, reply_markup=build_main_keyboard())
+        await update.message.reply_text(response_text, reply_markup=main_keyboard())
 
     except Exception as e:
         logger.error(f"Error en Groq: {e}")
         await update.message.reply_text(
-            "Lo siento, mis circuitos están un poco ocupados. 😅\n"
-            f"Por favor, contacta directamente a nuestros asesores aquí: https://wa.me/{WHATSAPP_NUMBER}"
+            "Lo siento, estamos recibiendo muchas consultas. Por favor, contacta directamente a nuestro "
+            "WhatsApp para una atención inmediata.",
+            reply_markup=main_keyboard()
         )
 
-# ── EJECUCIÓN DEL BOT ──────────────────────────────────────────────────────────
+# ── EJECUCIÓN PRINCIPAL ───────────────────────────────────────────────────────
 def main():
-    # Validar que existan las llaves
-    if "Gsk_" not in GROQ_API_KEY:
-        print("⚠️ ERROR: La API Key de Groq parece inválida.")
+    if not TELEGRAM_TOKEN or not GROQ_API_KEY:
+        print("❌ ERROR: No se encontraron las llaves API.")
         return
 
-    print("🤖 Iniciando bot NAZARETH...")
-    
+    # Construir la aplicación de Telegram
     app = Application.builder().token(TELEGRAM_TOKEN).build()
 
-    # Rutas de comandos
+    # Comandos y Mensajes
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(handle_callback))
+    app.add_handler(CallbackQueryHandler(handle_buttons))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
-    print("✅ ¡Bot en línea! Presiona Ctrl+C para detener.")
+
+    print("🤖 NAZARETH está en línea y escuchando...")
     app.run_polling()
 
 if __name__ == "__main__":
