@@ -13,8 +13,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ── Configuración ──────────────────────────────────────────────────────────────
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+TELEGRAM_TOKEN = "8602807198:AAHHitHYRqxQGKwQx9uIOtkas9TtN6kxFaY"
+GROQ_API_KEY = "Gsk_MbSZpfsMcnw5iw5hIiEDWGdyb3FYzazoz9RQAd7PUqDzaMlblQlp"
 GROQ_MODEL = "llama3-70b-8192"
 WHATSAPP_NUMBER = "584264014765"  # Formato internacional corregido
 AULA_VIRTUAL = "https://academiajesusdenazareth.milaulas.com"
