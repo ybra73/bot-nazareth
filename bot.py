@@ -14,7 +14,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "NAZARETH ONLINE: Academia Internacional en evolución."
+    return "NAZARETH ONLINE: Academia Internacional activa."
 
 def run_flask():
     # Render asigna un puerto automáticamente
@@ -35,13 +35,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ── PROMPT DEL SISTEMA (INTERNACIONAL Y EVOLUTIVO) ──────────────────────────
+# ── PROMPT DEL SISTEMA ──────────────────────────────────────────────────────
 SYSTEM_PROMPT = f"""Eres NAZARETH, la asistente virtual de la Academia Internacional Jesús de Nazareth.
-Somos una institución de alcance mundial en constante evolución y actualización tecnológica.
 Responde en el idioma del usuario. Somos una academia global.
 Datos clave: WhatsApp +{WHATSAPP_NUMBER}, Aula Virtual: {AULA_VIRTUAL}.
 REGLA: Si preguntan por precios o inscripción, diles que pulsen el botón de WhatsApp."""
 
+# Inicialización del cliente Groq
 client = Groq(api_key=GROQ_API_KEY)
 user_memory = {}
 
@@ -61,8 +61,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_memory[user_id] = [] 
     await update.message.reply_text(
         f"¡Hola {update.effective_user.first_name}! 👋 Soy NAZARETH.\n"
-        "Bienvenido a nuestra Academia Internacional. Estamos en constante actualización.\n"
-        "¿En qué área te gustaría especializarte hoy?",
+        "Bienvenido a nuestra Academia Internacional. ¿En qué área te gustaría especializarte hoy?",
         reply_markup=main_keyboard()
     )
 
@@ -81,6 +80,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id not in user_memory:
         user_memory[user_id] = []
     
+    # Mantener memoria corta de 5 mensajes
     user_memory[user_id].append({"role": "user", "content": user_input})
     user_memory[user_id] = user_memory[user_id][-5:] 
 
@@ -97,25 +97,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(response_text, reply_markup=main_keyboard())
 
     except Exception as e:
-        logger.error(f"Error en Groq: {e}")
+        logger.error(f"Error real detectado: {e}")
+        # Este mensaje te dirá exactamente qué falla (ej: si la API Key es inválida)
         await update.message.reply_text(
-            "Estamos actualizando nuestros sistemas internacionales. Por favor, usa el botón de WhatsApp.",
+            f"Lo siento, tengo un inconveniente técnico: {e}. Por favor, usa el botón de WhatsApp mientras lo soluciono.",
             reply_markup=main_keyboard()
         )
 
 # ── EJECUCIÓN PRINCIPAL ───────────────────────────────────────────────────────
 def main():
-    # 1. Iniciar Flask en un hilo separado (para que Render no se duerma)
+    # 1. Iniciar Flask para Keep-Alive
     threading.Thread(target=run_flask, daemon=True).start()
 
-    # 2. Iniciar Telegram
-    app = Application.builder().token(TELEGRAM_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(handle_buttons))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    # 2. Iniciar el bot de Telegram
+    application = Application.builder().token(TELEGRAM_TOKEN).build()
+    
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(handle_buttons))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("🤖 NAZARETH Internacional está en línea...")
-    app.run_polling()
+    print("🤖 NAZARETH está lista y escuchando...")
+    application.run_polling()
 
 if __name__ == "__main__":
     main()
